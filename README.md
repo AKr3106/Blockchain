@@ -5,7 +5,7 @@ It’s a fun and beginner-friendly way to learn smart contract logic, randomness
 
 ---
 
-<img width="1915" height="1079" alt="Screenshot 2025-10-29 141738" src="https://github.com/user-attachments/assets/2b80d3ec-923d-45e5-9d26-68351a24591a" />
+<img width="1915" height="1079" alt="Screenshot 2025-10-29 141738" src="https://github.com/user-attachments/assets/0d6cd5d1-a762-48ce-83a9-667d94f57a59" />
 
 
 ## 🚀 Project Description
@@ -44,7 +44,7 @@ It’s lightweight, readable, and perfect for first-time blockchain developers.
 
 **Network:** Celo Sepolia Testnet  
 **Deployed Address:**  
-🔗 [Contract](https://celo-sepolia.blockscout.com/address/0x8058cd62d19aCf20F33FE4D7B014Fa35f117C07F)
+🔗 [Deployed Contract](https://celo-sepolia.blockscout.com/address/0x8058cd62d19aCf20F33FE4D7B014Fa35f117C07F)
 
 ---
 
@@ -52,4 +52,92 @@ It’s lightweight, readable, and perfect for first-time blockchain developers.
 
 Use this code:  
 ```solidity
-//paste your code
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+contract ChainRise {
+    address public owner;
+
+    enum Prediction { Higher, Lower }
+
+    struct Game {
+        address player;
+        uint256 betAmount;
+        uint256 randomNumber;
+        bool isActive;
+    }
+
+    mapping(address => Game) public games;
+
+    event BetPlaced(address indexed player, uint256 betAmount, Prediction prediction);
+    event GameResult(address indexed player, bool won, uint256 payout, uint256 randomNumber);
+    event Withdraw(address indexed owner, uint256 amount);
+
+    constructor() {
+        owner = msg.sender;
+    }
+
+    // 🔹 Player makes a bet predicting higher/lower outcome
+    function placeBet(Prediction _prediction) external payable {
+        require(msg.value > 0, "Bet must be greater than 0");
+        require(!games[msg.sender].isActive, "You already have an active game");
+
+        uint256 randomNumber = _random();
+
+        games[msg.sender] = Game({
+            player: msg.sender,
+            betAmount: msg.value,
+            randomNumber: randomNumber,
+            isActive: true
+        });
+
+        emit BetPlaced(msg.sender, msg.value, _prediction);
+
+        // Check result immediately for simplicity
+        _checkResult(_prediction);
+    }
+
+    // 🔹 Internal: checks win/loss and pays out
+    function _checkResult(Prediction _prediction) internal {
+        Game storage game = games[msg.sender];
+
+        uint256 newRandom = _random();
+        bool won;
+
+        if (_prediction == Prediction.Higher && newRandom > game.randomNumber) {
+            won = true;
+        } else if (_prediction == Prediction.Lower && newRandom < game.randomNumber) {
+            won = true;
+        } else {
+            won = false;
+        }
+
+        uint256 payout = 0;
+        if (won) {
+            payout = game.betAmount * 2;
+            require(address(this).balance >= payout, "Not enough balance in contract");
+            payable(msg.sender).transfer(payout);
+        }
+
+        emit GameResult(msg.sender, won, payout, newRandom);
+        delete games[msg.sender];
+    }
+
+    // 🔹 Pseudo-random number generator (for demo only)
+    function _random() private view returns (uint256) {
+        return uint256(keccak256(abi.encodePacked(block.timestamp, msg.sender, blockhash(block.number - 1)))) % 100;
+    }
+
+    // 🔹 Owner can withdraw funds
+    function withdraw(uint256 _amount) external {
+        require(msg.sender == owner, "Only owner can withdraw");
+        require(address(this).balance >= _amount, "Not enough balance");
+        payable(owner).transfer(_amount);
+        emit Withdraw(owner, _amount);
+    }
+
+    // 🔹 Get contract balance
+    function getBalance() external view returns (uint256) {
+        return address(this).balance;
+    }
+}
